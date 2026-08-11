@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="./style.css"
+      type="text/css" />
+    <title>Điều Khiển Quạt Nidec</title>
+  </head>
+  <body>
+    <!-- Phần luôn đọc khi có thay đổi -->
+    <span
+      id="sr_label"
+      class="sr-only"
+      aria-live="polite"
+      aria-atomic="true"></span>
+    <!-- ------------------------------ -->
+
+    <div
+      id="basic_container"
+      class="container">
+      <div
+        role="radiogroup"
+        aria-label="Điều khiển tốc độ quạt"
+        class="speed-group">
+        <button
+          class="btn-danger"
+          onclick="setFanSpeed(0)"
+          role="radio"
+          aria-checked="false"
+          aria-label="Tắt quạt">
+          Tắt
+        </button>
+
+        <button
+          class="btn-primary"
+          onclick="setFanSpeed(50)"
+          role="radio"
+          aria-checked="false"
+          aria-label="Mức quạt nhỏ">
+          Nhỏ
+        </button>
+
+        <button
+          class="btn-primary"
+          onclick="setFanSpeed(250)"
+          role="radio"
+          aria-checked="false"
+          aria-label="Mức quạt vừa">
+          Vừa
+        </button>
+
+        <button
+          class="btn-primary"
+          onclick="setFanSpeed(450)"
+          role="radio"
+          aria-checked="false"
+          aria-label="Mức quạt lớn">
+          Lớn
+        </button>
+      </div>
+
+      <div>
+        <span style="color: #888">Tốc độ:</span>
+
+        <span
+          id="speed_label"
+          class="value-display">
+          Tắt
+        </span>
+      </div>
+    </div>
+
+    <a href="./advance.html">
+      <button>Cho Hoàng</button>
+    </a>
+
+    <script src="./main.js"></script>
+  </body>
+</html>

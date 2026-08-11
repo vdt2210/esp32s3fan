@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="./style.css"
+      type="text/css" />
+    <title>Điều Khiển Quạt Nidec</title>
+  </head>
+  <body>
+    <div
+      id="advance_container"
+      class="container">
+      <h1>Bộ Điều Tốc Quạt Nidec</h1>
+
+      <div>
+        <div class="value-display"><span id="hz_val">0</span> <span class="unit">Hz</span></div>
+        <p style="font-size: 14px; color: #888">Tốc độ: <span id="rpm_val">0</span> RPM</p>
+      </div>
+
+      <input
+        type="range"
+        min="0"
+        max="450"
+        value="0"
+        class="slider"
+        id="hzSlider"
+        oninput="setFanSpeed(this.value)" />
+
+      <button
+        class="btn-danger"
+        onclick="setFanSpeed(0)">
+        Tắt quạt
+      </button>
+    </div>
+
+    <div
+      style="
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: balance;
+      ">
+      <a href="./basic.html">
+        <button>Cơ bản</button>
+      </a>
+
+      <button onclick="openModal('learnIrModal')">Học lệnh IR</button>
+
+      <button>Cài đặt</button>
+    </div>
+
+    <div
+      class="modal-overlay"
+      id="learnIrModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h1>Học lệnh IR</h1>
+
+          <button
+            class="btn-icon"
+            onclick="closeModal('learnIrModal')">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <line
+                x1="18"
+                y1="6"
+                x2="6"
+                y2="18"></line>
+              <line
+                x1="6"
+                y1="6"
+                x2="18"
+                y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="ir-log-container">
+            <!-- <p class="status">Cảm biến IR đang sẵn sàng... Bấm remote đi ní!</p> -->
+
+            <ul
+              id="ir-log"
+              class="ir-log-list"></ul>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button
+            class="btn-icon btn-danger"
+            onclick="clearIrLog()"
+            title="Xóa nhật ký">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              <line
+                x1="10"
+                y1="11"
+                x2="10"
+                y2="17" />
+              <line
+                x1="14"
+                y1="11"
+                x2="14"
+                y2="17" />
+            </svg>
+          </button>
+
+          <button class="btn-primary">Lưu</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./main.js"></script>
+    <script src="./advance.js"></script>
+  </body>
+</html>

@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0" />
     <link
       rel="stylesheet"
-      href="./style.css"
+      href="style.css"
       type="text/css" />
     <title>Điều Khiển Quạt Nidec</title>
   </head>
@@ -36,6 +36,15 @@
         onclick="setFanSpeed(0)">
         Tắt quạt
       </button>
+
+      <button
+        id="toggle_swing_btn"
+        onclick="toggleSwing()"
+        role="radio"
+        aria-checked="false"
+        aria-label="Đảo gió">
+        Đảo gió
+      </button>
     </div>
 
     <div
@@ -47,13 +56,14 @@
         align-items: center;
         flex-wrap: balance;
       ">
-      <a href="./basic.html">
+      <a href="/">
         <button>Cơ bản</button>
       </a>
 
       <button onclick="openModal('learnIrModal')">Học lệnh IR</button>
 
-      <button>Cài đặt</button>
+      <a href="/ir-test">ir-test</a>
+      <a href="/ir">ir</a>
     </div>
 
     <div
@@ -136,7 +146,7 @@
       </div>
     </div>
 
-    <script src="./main.js"></script>
-    <script src="./advance.js"></script>
+    <script src="main.js"></script>
+    <script src="advance.js"></script>
   </body>
 </html>

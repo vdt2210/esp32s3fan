@@ -164,3 +164,5 @@ renderIrLogs([
     rawHex: '0xD81 (12 Bits)',
   },
 ]);
+
+// Đảm bảo hàm được gọi từ HTML inline (onclick) luôn truy cập được

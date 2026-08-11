@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0" />
     <link
       rel="stylesheet"
-      href="./style.css"
+      href="style.css"
       type="text/css" />
     <title>Điều Khiển Quạt Nidec</title>
   </head>
@@ -73,12 +73,21 @@
           Tắt
         </span>
       </div>
+
+      <button
+        id="toggle_swing_btn"
+        onclick="toggleSwing()"
+        role="radio"
+        aria-checked="false"
+        aria-label="Đảo gió">
+        Đảo gió
+      </button>
     </div>
 
-    <a href="./advance.html">
+    <a href="/advance">
       <button>Cho Hoàng</button>
     </a>
 
-    <script src="./main.js"></script>
+    <script src="main.js"></script>
   </body>
 </html>

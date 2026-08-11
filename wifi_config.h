@@ -1,98 +1,124 @@
 #ifndef WIFI_CONFIG_H
 #define WIFI_CONFIG_H
 
+#include <cstddef>
+#include <cstring>
+
 #include <WiFi.h>
-#include <WiFiMulti.h> // Thêm thư viện quản lý nhiều Wi-Fi
+#include <WiFiMulti.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <WebServer.h>
+#include "led_rgb.h"
 
-// Wi-Fi 1 (Chính của bạn)
-#define WIFI_SSID_1     "DOCTOR LAPTOP"
-#define WIFI_PASSWORD_1 "91a32q10"
+struct WifiNetwork {
+  const char* ssid;
+  const char* password;
+};
 
-// Wi-Fi 2 (Dự phòng - bạn đổi lại tên và mật khẩu theo ý muốn)
-#define WIFI_SSID_2     "Meo Con"
-#define WIFI_PASSWORD_2 "huamynhung"
+#ifndef WIFI_SECRETS_H
+#include "wifi_secrets.h"
+#endif
 
-// Wi-Fi 3
-#define WIFI_SSID_3     "VDT IoT"
-#define WIFI_PASSWORD_3 "khongcoquyentruycap"
+#ifndef WIFI_SECRETS_READY
+#error "WIFI_SECRETS_H chua dung dinh dang. Hay sao chep wifi_secrets.h thanh wifi_secrets.h va dien thong tin."
+#endif
 
-// Khai báo đối tượng WiFiMulti
 WiFiMulti wifiMulti;
-
-// Khai báo server dùng chung (sẽ định nghĩa ở file .ino)
 extern WebServer server;
 
+inline bool add_wifi_if_valid(const char* ssid, const char* password) {
+  if (ssid == nullptr || password == nullptr) {
+    return false;
+  }
+  if (strlen(ssid) == 0 || strlen(password) == 0) {
+    return false;
+  }
+  wifiMulti.addAP(ssid, password);
+  return true;
+}
+
 inline void setup_wifi_ota() {
-    Serial.println("\n--- ĐANG KẾT NỐI WIFI ---");
-    WiFi.mode(WIFI_STA);
+  Serial.println("\n--- KET NOI WIFI ---");
+  WiFi.mode(WIFI_STA);
 
-    // Đăng ký danh sách các mạng Wi-Fi
-    wifiMulti.addAP(WIFI_SSID_1, WIFI_PASSWORD_1);
-    wifiMulti.addAP(WIFI_SSID_2, WIFI_PASSWORD_2);
-    wifiMulti.addAP(WIFI_SSID_3, WIFI_PASSWORD_3);
+  int configured = 0;
+  for (size_t i = 0; i < WIFI_NETWORK_COUNT; i++) {
+    configured += static_cast<int>(add_wifi_if_valid(WIFI_NETWORKS[i].ssid, WIFI_NETWORKS[i].password));
+  }
 
-    Serial.print("Đang quét và kết nối vào Wi-Fi phù hợp");
-    int timeout = 0;
-    // wifiMulti.run() sẽ tự chọn mạng có sóng tốt nhất để kết nối
-    while (wifiMulti.run() != WL_CONNECTED && timeout < 30) {
-        delay(500);
-        Serial.print(".");
-        timeout++;
+  if (configured == 0) {
+    blink_state(BLINK_ERROR);
+    Serial.println("\n[LOI] Khong co cau hinh Wi-Fi hop le.");
+    Serial.println("[LOI] Vui long kiem tra wifi_secrets.h: WIFI_NETWORKS can phai co it nhat 1 dong hop le.");
+    return;
+  }
+
+  Serial.print("Dang quet va ket noi toi cac Wi-Fi da cau hinh...");
+  int timeout = 0;
+  while (wifiMulti.run() != WL_CONNECTED && timeout < 30) {
+    delay(500);
+    Serial.print(".");
+    timeout++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n[OK] Ket noi Wifi thanh cong!");
+    Serial.print("Mang dang ket noi: ");
+    Serial.println(WiFi.SSID());
+    Serial.print("IP cua ESP32-S3: ");
+    Serial.println(WiFi.localIP());
+    blink_state(BLINK_SUCCESS, 3);
+
+    if (!MDNS.begin("esp32s3fan")) {
+      blink_state(BLINK_ERROR);
+      Serial.println("[LOI] Loi cau hinh MDNS!");
     }
+  } else {
+    blink_state(BLINK_ERROR);
+    Serial.println("\n[LOI] Ket noi Wifi that bai! Kiem tra SSID, mat khau va vung phu song.");
+  }
 
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[OK] Wifi đã kết nối thành công!");
-        Serial.print("Mạng đang kết nối: ");
-        Serial.println(WiFi.SSID());
-        Serial.print("IP của ESP32-S3: ");
-        Serial.println(WiFi.localIP());
-        
-        // Cấu hình tên MDNS để nạp code từ xa qua tên (ví dụ: esp32s3fan.local)
-        if (!MDNS.begin("esp32s3fan")) {
-            Serial.println("[Error] Lỗi cấu hình MDNS!");
-        }
-    } else {
-        Serial.println("\n[Error] Kết nối Wifi thất bại! Đang không ở gần router nào cả.");
+  ArduinoOTA.onStart([]() {
+    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "phan mem" : "he thong tep";
+    Serial.println("Bat dau nap code tu xa: " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[THANH CONG] Nap code hoan tat! Dang khoi dong lai...");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Dang tai: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Loi OTA [%u]: ", error);
+    if (error == OTA_AUTH_ERROR) {
+      Serial.println("Sai mat khau OTA");
+    } else if (error == OTA_BEGIN_ERROR) {
+      Serial.println("Loi bat dau");
+    } else if (error == OTA_CONNECT_ERROR) {
+      Serial.println("Loi ket noi");
+    } else if (error == OTA_RECEIVE_ERROR) {
+      Serial.println("Loi nhan du lieu");
+    } else if (error == OTA_END_ERROR) {
+      Serial.println("Loi ket thuc");
     }
+  });
 
-    // --- CẤU HÌNH ARDUINO OTA (NẠP CODE QUA WIFI GIỮ NGUYÊN CỦA BẠN) ---
-    ArduinoOTA.onStart([]() {
-        String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
-        Serial.println("Bắt đầu nạp code từ xa: " + type);
-    });
-    ArduinoOTA.onEnd([]() {
-        Serial.println("\n[OK] Nạp code hoàn tất! Đang khởi động lại...");
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Đang nạp: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("Lỗi [%u]: ", error);
-        if (error == OTA_AUTH_ERROR) Serial.println("Sai mật khẩu OTA");
-        else if (error == OTA_BEGIN_ERROR) Serial.println("Lỗi Begin");
-        else if (error == OTA_CONNECT_ERROR) Serial.println("Lỗi kết nối");
-        else if (error == OTA_RECEIVE_ERROR) Serial.println("Lỗi nhận dữ liệu");
-        else if (error == OTA_END_ERROR) Serial.println("Lỗi End");
-    });
-
-    ArduinoOTA.begin();
+  ArduinoOTA.begin();
 }
 
 inline void handle_ota() {
-    ArduinoOTA.handle();
-    
-    // Mẹo nhỏ: Kiểm tra rớt mạng trong lúc quạt đang chạy để tự động kết nối lại Wi-Fi phụ
-    static unsigned long lastCheck = 0;
-    if (millis() - lastCheck > 10000) { // Mỗi 10 giây check 1 lần để tránh làm nghẽn chip
-        lastCheck = millis();
-        if (WiFi.status() != WL_CONNECTED) {
-            Serial.println("Mất mạng! Đang quét tìm Wi-Fi dự phòng khả dụng...");
-            wifiMulti.run();
-        }
+  ArduinoOTA.handle();
+
+  static unsigned long lastCheck = 0;
+  if (millis() - lastCheck > 10000) {
+    lastCheck = millis();
+    if (WiFi.status() != WL_CONNECTED) {
+      blink_state(BLINK_INFO);
+      Serial.println("Mat ket noi mang! Dang quet tim Wi-Fi thay the...");
+      wifiMulti.run();
     }
+  }
 }
 
 #endif

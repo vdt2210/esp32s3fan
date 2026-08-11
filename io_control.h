@@ -24,6 +24,8 @@ extern bool fan_power_state; // <-- Biến lưu trạng thái Bật/Tắt nguồ
 
 // Khai báo các hàm
 void setup_io();
+void turn_fan_on(int target_hz);
+void turn_fan_off();
 void set_swing(bool enable);
 void toggle_swing();
 
@@ -32,6 +34,7 @@ void toggle_fan_power();         // <-- Hàm đảo trạng thái nguồn chính
 
 void check_buttons();
 void update_led_by_speed(int hz);
+void update_io_tasks();
 
 // Khai báo hàm phát tiếng còi
 void beep(int duration_ms = 80);

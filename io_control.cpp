@@ -1,14 +1,22 @@
 #include "io_control.h"
-#include "fan_clk.h" // Cần bao hàm file này để điều khiển tần số quạt
+#include "fan_clk.h" // Cần để điều khiển tần số quạt
 
 // Khai báo biến trạng thái
 bool swing_state = false;
 bool fan_power_state = false;
 
-// Trạng thái các nút bấm (để chống dội / debounce)
+// Trạng thái các nút bấm (để chống dội / debounce cơ bản)
 static bool btn1_prev = HIGH;
 static bool btn2_prev = HIGH;
 static bool btn3_prev = HIGH;
+static unsigned long btn_guard_until = 0;
+
+// Buzzer không chặn (tắt pin sau thời điểm đã đặt)
+static bool beep_active = false;
+static unsigned long beep_end_time = 0;
+
+// Tắt quạt theo dạng async: đợi tần số về 0 rồi cắt nguồn
+static bool fan_power_down_pending = false;
 
 void setup_io() {
     // Cấu hình Nút bấm (Active Low - kéo lên nội bộ)
@@ -33,7 +41,7 @@ void setup_io() {
     pinMode(PIN_FAN_POWER, OUTPUT);
     pinMode(PIN_BUZZER, OUTPUT);
 
-    // Mặc định ban đầu tắt ngắt dương 24V và đảo gió
+    // Mặc định ban đầu tắt quạt, tắt dừng
     digitalWrite(PIN_SWING, LOW);
     digitalWrite(PIN_FAN_POWER, LOW);
     digitalWrite(PIN_BUZZER, LOW);
@@ -43,13 +51,16 @@ void setup_io() {
 }
 
 // -------------------------------------------------------------
-// HÀM BẬT QUẠT VỚI TRÌNH TỰ AN TOÀN (OFF -> ON)
+// BẬT QUẠT VÀO TRẠNG THÁI AN TOÀN (OFF -> ON)
 // -------------------------------------------------------------
 void turn_fan_on(int target_hz) {
+    if (fan_power_down_pending) {
+        fan_power_down_pending = false;
+    }
+
     if (!fan_power_state) {
         digitalWrite(PIN_FAN_POWER, HIGH);
         fan_power_state = true;
-        delay(100); // Chờ nguồn 24V ổn định
     }
 
     set_fan_hz(target_hz);
@@ -57,46 +68,38 @@ void turn_fan_on(int target_hz) {
 }
 
 // -------------------------------------------------------------
-// HÀM TẮT QUẠT MỀM MẠI (ON -> OFF)
+// TẮT QUẠT MẠNH MẠI (ON -> OFF)
 // -------------------------------------------------------------
 void turn_fan_off() {
-    if (!fan_power_state) return;
+    if (!fan_power_state || fan_power_down_pending) return;
 
-    // 1. Tắt đảo gió trước
+    // 1. Tắt dậy gió trước
     set_swing(false);
 
-    // 2. Lấy tần số hiện tại trực tiếp từ biến target_hz_clk
-    int current_hz = target_hz_clk;
-
-    // 3. Hạ xung mềm mại về 0Hz
-    if (current_hz > 0) {
-        int steps = 10;
-        int step_hz = current_hz / steps;
-        int delay_per_step = 300 / steps;
-
-        for (int i = steps - 1; i >= 0; i--) {
-            set_fan_hz(i * step_hz);
-            delay(delay_per_step);
-        }
-    }
-
-    // 4. Đưa tần số về 0Hz hẳn
+    // 2. Bắt đầu chuỗi dừng: hạ về 0 rồi tắt nguồn sau khi dừng rung
+    fan_power_down_pending = true;
     set_fan_hz(0);
+}
 
-    // 5. Ngắt nguồn 24V
-    delay(50);
-    digitalWrite(PIN_FAN_POWER, LOW);
-    fan_power_state = false;
+// Hàm đồng bộ hóa giai đoạn tắt quạt (gọi mỗi vòng loop)
+static void process_fan_power_down() {
+    if (!fan_power_down_pending) return;
 
-    update_led_by_speed(0);
+    if (current_hz_clk == 0 && target_hz_clk == 0) {
+        delayMicroseconds(50);
+        digitalWrite(PIN_FAN_POWER, LOW);
+        fan_power_state = false;
+        fan_power_down_pending = false;
+        update_led_by_speed(0);
+    }
 }
 
 // -------------------------------------------------------------
-// ĐIỀU KHIỂN NGUỒN 24V ĐỘNG CƠ CHÍNH
+// ĐIỀU KHIỂN NGUỒN 24V ĐỒNG CẤP
 // -------------------------------------------------------------
 void set_fan_power(bool enable) {
     if (enable) {
-        // Nếu bật nguồn mà chưa có tốc độ, mặc định chạy ở Tốc độ 1 (ví dụ 100Hz)
+        // Nếu bật nguồn mà chưa có tốc độ, mặc định chạy ở 100Hz
         turn_fan_on(100); 
     } else {
         turn_fan_off();
@@ -108,10 +111,10 @@ void toggle_fan_power() {
 }
 
 // -------------------------------------------------------------
-// ĐIỀU KHIỂN ĐẢO GIÓ (SWING) - CÓ KHÓA THEO NGUỒN QUẠT
+// ĐIỀU KHIỂN DẠO GIÓ (SWING) - KHÔNG THỂ BẬT KHI QUẠT TẮT
 // -------------------------------------------------------------
 void set_swing(bool enable) {
-    // Nếu quạt đang TẮT mà cố tình BẬT đảo gió -> Bỏ qua ngay
+    // Nếu quạt đang TẮT mà muốn BẬT dậy gió -> Bỏ qua ngay
     if (enable && !fan_power_state) {
         return; 
     }
@@ -122,7 +125,7 @@ void set_swing(bool enable) {
 }
 
 void toggle_swing() {
-    // Chỉ cho phép đảo trạng thái khi quạt đang BẬT
+    // Chỉ cho phép đổi trạng thái khi quạt đang BẬT
     if (fan_power_state) {
         set_swing(!swing_state);
     }
@@ -132,25 +135,42 @@ void toggle_swing() {
 // CẬP NHẬT LED BÁO TỐC ĐỘ QUẠT
 // -------------------------------------------------------------
 void update_led_by_speed(int hz) {
-    // Ví dụ các mức tần số tương ứng với Tốc độ 1, 2, 3
+    // Ví dụ mức tần số tương ứng với Tốc Độ 1, 2, 3
     digitalWrite(PIN_LED_1, (hz > 0 && hz <= 100) ? HIGH : LOW);
     digitalWrite(PIN_LED_2, (hz > 100 && hz <= 200) ? HIGH : LOW);
     digitalWrite(PIN_LED_3, (hz > 200) ? HIGH : LOW);
 }
 
 // -------------------------------------------------------------
-// PHÁT TIẾNG CÒI BÍP (BUZZER)
+// PHÁT TIẾNG BUZZER (BUZZER)
 // -------------------------------------------------------------
 void beep(int duration_ms) {
+    if (duration_ms <= 0) {
+        digitalWrite(PIN_BUZZER, LOW);
+        beep_active = false;
+        return;
+    }
+
     digitalWrite(PIN_BUZZER, HIGH);
-    delay(duration_ms);
-    digitalWrite(PIN_BUZZER, LOW);
+    beep_active = true;
+    beep_end_time = millis() + (unsigned long)duration_ms;
+}
+
+static void update_beep() {
+    if (!beep_active) return;
+    if ((long)(millis() - beep_end_time) >= 0) {
+        digitalWrite(PIN_BUZZER, LOW);
+        beep_active = false;
+    }
 }
 
 // -------------------------------------------------------------
 // QUẢN LÝ NÚT BẤM (BUTTONS)
 // -------------------------------------------------------------
 void check_buttons() {
+    unsigned long now = millis();
+    if (now < btn_guard_until) return;
+
     bool btn1 = digitalRead(PIN_BTN_1); // ON / SPEED
     bool btn2 = digitalRead(PIN_BTN_2); // SWING
     bool btn3 = digitalRead(PIN_BTN_3); // OFF
@@ -161,13 +181,12 @@ void check_buttons() {
         if (!fan_power_state) {
             turn_fan_on(100);
         } else {
-            // Đọc trực tiếp từ biến target_hz_clk
             int current_hz = target_hz_clk; 
             int next_hz = (current_hz >= 300) ? 100 : (current_hz + 100);
             set_fan_hz(next_hz);
             update_led_by_speed(next_hz);
         }
-        delay(50);
+        btn_guard_until = now + 70;
     }
     btn1_prev = btn1;
 
@@ -175,7 +194,7 @@ void check_buttons() {
     if (btn2 == LOW && btn2_prev == HIGH) {
         beep(50);
         toggle_swing();
-        delay(50);
+        btn_guard_until = now + 70;
     }
     btn2_prev = btn2;
 
@@ -183,7 +202,15 @@ void check_buttons() {
     if (btn3 == LOW && btn3_prev == HIGH) {
         beep(50);
         turn_fan_off();
-        delay(50);
+        btn_guard_until = now + 70;
     }
     btn3_prev = btn3;
+}
+
+// -------------------------------------------------------------
+// Cập nhật nhiệm vụ nền của IO (buzzer + power down)
+// -------------------------------------------------------------
+void update_io_tasks() {
+    update_beep();
+    process_fan_power_down();
 }
